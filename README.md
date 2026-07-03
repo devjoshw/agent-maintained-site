@@ -18,12 +18,13 @@ unattended automation safe and cheap.
 ```
 ARCHITECTURE.md                       # the pattern, the loops, the guardrails — start here
 README.md
+CLAUDE.md                             # project memory for Claude Code
 LICENSE                               # MIT
 docs/
   claude-code-agent-maintained.md     # build the self-updating site with Claude Code as the scheduled writer
   claude-code-generic.md              # build a plain static site with Claude Code as an interactive helper
-.nvmrc                                # toolchain pin (keep it AHEAD of your deps)
-package.json                          # the reusable scripts + rss-parser
+.nvmrc                                # toolchain pin — Node 24 LTS (keep it AHEAD of your deps)
+package.json                          # the reusable scripts + rss-parser (Node 24 engines floor)
 scripts/
   refresh-feeds.mjs                   # deterministic writer: abort-on-timeout, bounded concurrency, fail-soft
   predeploy-check.mjs                 # blocks a manual deploy from shipping stale state over bot commits
@@ -32,23 +33,34 @@ scripts/
   generate-brief.md                   #   daily brief: never-fabricate / never-repeat contract
   generate-digest.md                  #   weekly digest
 src/lib/content.ts                    # safe render helpers: safeUrl, escapeXml, UTC date formatting
+src/content.config.ts                 # Zod schemas that gate agent JSON at build time
 src/data/reading.example.json         # the shape the refresh job reads/writes
-examples/github-workflows/
-  deploy.yml                          # push to main → build → deploy (timeout-capped)
-  daily-reading-refresh.yml           # cron → refresh → commit → dispatch deploy (handles the GITHUB_TOKEN caveat)
+examples/
+  github-workflows/
+    deploy.yml                        # push to main → build → wrangler-action deploy (SHA-pinned)
+    daily-reading-refresh.yml         # cron → refresh → commit → dispatch deploy (GITHUB_TOKEN caveat)
+  wrangler.jsonc                      # Cloudflare Workers Static Assets config (assets-only)
+  dependabot.yml                      # keep npm + SHA-pinned actions current
 ```
 
 ## Quick start
 
-1. **Bring a static-site generator** with build-time data loading (it must read
-   local JSON at build). Add your `build` and `deploy` npm scripts.
-2. **Copy the workflows into place:**
+**Building this with Claude Code?** The two guides in [`docs/`](./docs) walk the
+whole thing end to end — [agent-maintained](./docs/claude-code-agent-maintained.md)
+or [generic](./docs/claude-code-generic.md). The steps below are the manual version.
+
+1. **Bring a static-site generator** with build-time data loading (Astro 7 is the
+   reference; it must read local JSON at build). Add your `build`, `dev`, and
+   `deploy` npm scripts.
+2. **Copy the workflows + configs into place:**
    ```bash
    mkdir -p .github/workflows
    cp examples/github-workflows/*.yml .github/workflows/
+   cp examples/dependabot.yml .github/dependabot.yml
+   cp examples/wrangler.jsonc .          # assets-only Cloudflare deploy
    ```
-   Then set your host's deploy secret (e.g. `CLOUDFLARE_API_TOKEN`) in
-   *Settings → Secrets and variables → Actions*, and adjust the deploy step for
+   Then set the two deploy secrets (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`)
+   in *Settings → Secrets and variables → Actions*, and adjust the deploy step for
    your host.
 3. **Seed your data:** `cp src/data/reading.example.json src/data/reading.json`
    and fill in your feeds.
@@ -58,8 +70,9 @@ examples/github-workflows/
    npm run refresh        # fetches feeds, updates src/data/reading.json
    ```
 5. **Wire the agent** (optional but the fun part): run the `.claude/commands/`
-   playbooks on a schedule with your agent runner. Fill in the `{{AUDIENCE}}`
-   placeholders and point them at your sources.
+   playbooks on a schedule — see the
+   [agent-maintained guide](./docs/claude-code-agent-maintained.md). Fill in the
+   `{{AUDIENCE}}` placeholders and point them at your sources.
 6. **Wire the freshness guard:** add `"predeploy": "node scripts/predeploy-check.mjs"`
    to your `package.json` so a manual deploy can't ship stale state over the
    bots' commits.

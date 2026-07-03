@@ -5,9 +5,16 @@ name: Deploy to the edge
 # workflows — see ARCHITECTURE.md's GITHUB_TOKEN caveat). origin/main is the
 # single source of truth: whatever is on main is what's live.
 #
-# Requires one repository secret for the Cloudflare example:
-#   CLOUDFLARE_API_TOKEN  (Settings > Secrets and variables > Actions)
+# Requires TWO repository secrets (Settings > Secrets and variables > Actions):
+#   CLOUDFLARE_API_TOKEN   scoped to "Edit Cloudflare Workers" on your account
+#   CLOUDFLARE_ACCOUNT_ID  your account id — wrangler needs it explicitly when the
+#                          token can reach more than one account
 # Swap the deploy step for your host (Netlify, Pages, etc.) as needed.
+#
+# Actions are pinned to full commit SHAs, not tags: tags are mutable and have
+# been hijacked as a supply-chain foothold (CVE-2025-30066). The trailing comment
+# is the human-readable version; examples/dependabot.yml bumps SHA + comment
+# together so the pins never rot.
 
 on:
   push:
@@ -31,10 +38,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
@@ -45,7 +52,13 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Deploy
-        run: npx wrangler deploy
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      # Assets-only deploy: wrangler.jsonc points `assets.directory` at ./dist,
+      # so Cloudflare serves the prerendered output directly — no Worker script,
+      # no @astrojs/cloudflare adapter. wrangler-action is Cloudflare's own
+      # wrapper and pins the same wrangler local + CI.
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy

@@ -1,0 +1,17 @@
+# Copy to .github/dependabot.yml.
+#
+# Keeps the npm dependency and the SHA-pinned GitHub Actions current, so pinning
+# actions to commit SHAs (the safe default — tags are mutable and have been
+# hijacked, e.g. CVE-2025-30066) doesn't rot into stale pins. Dependabot bumps a
+# SHA-pinned action's SHA *and* its trailing `# vX.Y.Z` comment together.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly

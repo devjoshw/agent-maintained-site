@@ -47,6 +47,12 @@ const USER_AGENT =
 
 const parser = new Parser();
 
+// The manual AbortController + deadline listener below is deliberate. Do NOT
+// "simplify" it to AbortSignal.any([AbortSignal.timeout(TIMEOUT_MS), deadline]) —
+// that combinator has open leak/misfire bugs on the Node 22/24 lines
+// (nodejs/node#57584). If you ever DO adopt AbortSignal.timeout(), note it aborts
+// with a TimeoutError (not an AbortError), so broaden the catch below in lockstep
+// or every timeout gets mislabeled.
 async function fetchRecent(entry, deadlineSignal) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -93,7 +99,13 @@ async function mapWithConcurrency(items, limit, worker) {
     while (true) {
       const i = next++;
       if (i >= items.length) return;
-      results[i] = await worker(items[i], i);
+      // Guard the worker so a thrown error can never reject Promise.all and skip
+      // every remaining feed — fail-soft must be structural, not incidental.
+      try {
+        results[i] = await worker(items[i], i);
+      } catch (err) {
+        results[i] = { ok: false, reason: err?.message ?? String(err) };
+      }
     }
   }
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, runner));
@@ -155,6 +167,9 @@ async function main() {
 }
 
 main()
+  // Explicit exit(0) is load-bearing: undici keep-alive sockets and rss-parser
+  // can keep the event loop non-empty past main(), hanging the runner. Keep it,
+  // paired with exit(1) only on the catastrophic read/write path.
   .then(() => process.exit(0))
   .catch((err) => {
     console.error('Fatal error:', err);

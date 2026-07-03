@@ -50,10 +50,10 @@ above doesn't create — see Part 1 of the
 
 - **Claude Code** installed:
   ```bash
-  npm install -g @anthropic-ai/claude-code    # needs Node 22+
+  npm install -g @anthropic-ai/claude-code    # CLI needs Node 22+ (this repo pins 24)
   # or: curl -fsSL https://claude.ai/install.sh | bash
   ```
-- **Node** matching [`.nvmrc`](../.nvmrc) (currently `22.22.2`): `nvm use`.
+- **Node** matching [`.nvmrc`](../.nvmrc) (Node 24 LTS): `nvm use`.
 - **A host** that deploys from a build artifact (Cloudflare Workers/Pages,
   Netlify, GitHub Pages…). The examples use Cloudflare + `wrangler`.
 
@@ -68,23 +68,19 @@ claude
 
 ## Step 1 — Orient Claude Code
 
-```
-/init
-```
-
-`/init` scans the repo and writes a `CLAUDE.md` — project memory that loads into
-every session. Refine it so the agent knows the conventions worth preserving:
+A starter [`CLAUDE.md`](../CLAUDE.md) already ships — project memory that loads
+into every session with the blueprint's conventions. Open it and tailor it to a
+plain site:
 
 ```
-Read ARCHITECTURE.md and src/lib/content.ts. Update CLAUDE.md to record: content
-is JSON under src/data/ (git is the CMS); rendering is a pure function of that
-data; and everything external we render must go through the content.ts helpers
-(safeUrl, escapeXml, the UTC date formatters). Note that this is a plain static
-site — we are NOT running an autonomous content agent.
+Update CLAUDE.md: keep the content-as-data and content.ts-sanitizing conventions,
+but record that this is a plain static site — we are NOT running the autonomous
+content agent. Remove the agent-maintained path from the notes.
 ```
 
-That last sentence matters: it tells future sessions not to reach for the
-`.claude/commands/` playbooks.
+That last part matters: it tells future sessions not to reach for the
+`.claude/commands/` playbooks. (`/init` refreshes `CLAUDE.md` from a codebase pass
+if you want, without overwriting your notes.)
 
 ---
 
@@ -95,11 +91,13 @@ the permission mode until it reads *plan* — so Claude Code proposes the struct
 before touching files:
 
 ```
-Plan a static site using <Astro | Eleventy | Hugo | Next static export> that:
-- loads JSON from src/data/ at build time
+Plan a static site using <Astro 7 | Eleventy | Hugo | Next static export> that:
+- loads JSON from src/data/ at build time (with Astro, use the Content Layer
+  glob() loader + the Zod schemas in src/content.config.ts as a build-time gate)
 - renders it through the helpers in src/lib/content.ts (safeUrl, formatDate, …)
-- adds npm scripts: dev, build, deploy
-- keeps the existing "refresh" and "predeploy" scripts in package.json
+- deploys assets-only to Cloudflare (no adapter for a static site; see
+  examples/wrangler.jsonc), or your host of choice
+- adds npm scripts: dev, build, deploy; keeps the existing refresh/predeploy
 List the files you'll add and the package.json changes before writing anything.
 ```
 
@@ -172,12 +170,15 @@ A normal, human-in-the-loop cycle — Claude Code assists, you decide:
    `predeploy-check.mjs` fetches `origin/main` and **blocks** a manual deploy if
    your clone is behind — so you can't overwrite live content with stale local
    state. (Escape hatch: `SKIP_DEPLOY_CHECK=1 npm run deploy`.)
-4. **Copy the deploy workflow** so pushing to `main` builds and deploys:
+4. **Copy the deploy workflow + configs** so pushing to `main` builds and deploys:
    ```bash
    cp examples/github-workflows/deploy.yml .github/workflows/
+   cp examples/dependabot.yml .github/dependabot.yml
+   cp examples/wrangler.jsonc .
    ```
-   Set your host's secret (e.g. `CLOUDFLARE_API_TOKEN`) under **Settings → Secrets
-   and variables → Actions**. No `ANTHROPIC_API_KEY` needed — no agent runs in CI.
+   Set the two deploy secrets (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`)
+   under **Settings → Secrets and variables → Actions**. No `ANTHROPIC_API_KEY`
+   needed — no agent runs in CI.
 5. **Commit and push.** `main` is the single source of truth; the push triggers
    the deploy.
 

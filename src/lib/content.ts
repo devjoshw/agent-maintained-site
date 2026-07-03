@@ -9,7 +9,7 @@
 // Framework-agnostic TypeScript; adapt the types to your own content shapes.
 
 /** Only http(s) URLs are safe as hrefs. Everything else — javascript:, data:,
- *  mailto:, relative, malformed — is rejected. */
+ *  mailto:, relative, malformed, or credential-bearing — is rejected. */
 export function safeUrl(u: unknown): string | undefined {
   if (typeof u !== 'string') return undefined;
   const trimmed = u.trim();
@@ -17,6 +17,10 @@ export function safeUrl(u: unknown): string | undefined {
   try {
     const parsed = new URL(trimmed);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined;
+    // Reject embedded credentials. `https://paypal.com@evil.example` parses with
+    // protocol `https:` but navigates to evil.example — a classic phishing shape.
+    // Legitimate feed/agent links never carry userinfo, so dropping it is safe.
+    if (parsed.username || parsed.password) return undefined;
     return parsed.href;
   } catch {
     return undefined;
@@ -37,12 +41,24 @@ export function escapeXml(s: string | undefined): string {
 // Date-only ISO (YYYY-MM-DD) parses to UTC midnight, so format in UTC or the
 // displayed day can slip by one in western time zones. Full timestamps: label
 // the zone so the rendered time is unambiguous regardless of where CI ran.
+//
+// NOTE: the manual "date-only → T00:00:00Z" shim below is deliberate — do NOT
+// replace it with the Temporal API yet. Temporal reached Stage 4 in early 2026
+// but ships unflagged only on Node 26+; on the pinned Node 24 line it still
+// needs a flag. Revisit when the engines floor moves to 26.
+
+/** Parse an ISO string, treating a bare date (YYYY-MM-DD) as UTC midnight so the
+ *  rendered day never slips a time zone. Returns null on an unparseable value. */
+function parseIso(iso: string): Date | null {
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T00:00:00Z` : iso);
+  return isNaN(d.getTime()) ? null : d;
+}
 
 /** "Monday, June 30, 2026" from "2026-06-30" (rendered in UTC). */
 export function formatDate(iso: string | undefined): string {
   if (!iso) return '';
-  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T00:00:00Z` : iso);
-  if (isNaN(d.getTime())) return iso;
+  const d = parseIso(iso);
+  if (!d) return iso;
   return d.toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -55,16 +71,16 @@ export function formatDate(iso: string | undefined): string {
 /** "Jun 30" — short label for lists. */
 export function formatDateShort(iso: string | undefined): string {
   if (!iso) return '';
-  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T00:00:00Z` : iso);
-  if (isNaN(d.getTime())) return iso;
+  const d = parseIso(iso);
+  if (!d) return iso;
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
 /** Full timestamp, rendered and labeled in UTC. */
 export function formatGenerated(iso: string | undefined): string {
   if (!iso) return 'unknown';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
+  const d = parseIso(iso);
+  if (!d) return iso;
   return `${d.toLocaleString('en-US', {
     dateStyle: 'long',
     timeStyle: 'short',
@@ -78,19 +94,7 @@ export function slugFromPath(path: string): string {
   return path.split('/').pop()?.replace('.json', '') || '';
 }
 
-// Example of a "never silently drop" bucketing helper. Anything with an
-// unexpected category lands in `other` so totals always reconcile — useful when
-// the category comes from agent output you don't fully control.
-export function groupByKey<T extends { key?: string }>(
-  items: T[],
-  known: readonly string[]
-): { groups: Record<string, T[]>; other: T[]; total: number } {
-  const groups: Record<string, T[]> = {};
-  for (const k of known) groups[k] = [];
-  const other: T[] = [];
-  for (const item of items) {
-    if (item.key && known.includes(item.key)) groups[item.key].push(item);
-    else other.push(item);
-  }
-  return { groups, other, total: items.length };
-}
+// A "never silently drop" bucketing pattern — anything with an unexpected
+// category lands in an `other` bucket so totals always reconcile — is described
+// in ARCHITECTURE.md. It isn't shipped here because nothing in the blueprint
+// calls it; add it in your own module if your content needs grouping.

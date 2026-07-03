@@ -79,46 +79,65 @@ with nobody watching.
 
 ## Component 1 — Static site + edge host
 
-**Stack:** [Astro](https://astro.build) (static output, TypeScript strict) →
-[Cloudflare Workers](https://developers.cloudflare.com/workers/) via the
-`@astrojs/cloudflare` adapter and `wrangler`.
+**Stack:** [Astro 7](https://astro.build) (static output, TypeScript strict) →
+[Cloudflare Workers Static Assets](https://developers.cloudflare.com/workers/static-assets/).
+Because the site is 100% prerendered, it deploys **assets-only** — Cloudflare
+serves the built `dist/` directly, with no Worker script and no
+`@astrojs/cloudflare` adapter. (Add the adapter only if you later introduce
+on-demand / server-rendered routes.)
 
 Why this shape:
 
-- **Build-time data loading.** Pages pull content with Astro's
-  `import.meta.glob('../data/**/*.json')`, so the JSON is baked into static HTML
-  at build. No runtime database calls, no per-request latency, trivially cacheable
-  at the edge.
+- **Build-time data loading, schema-gated.** Define collections in
+  [`src/content.config.ts`](./src/content.config.ts) with Astro's Content Layer
+  `glob()` loader plus a Zod schema per content type, and query them with
+  `getCollection()`. The schema is checked **at build time**, so malformed agent-
+  or feed-authored JSON *fails the build loudly* instead of rendering garbage —
+  exactly the failure mode you want from an unattended writer. (`import.meta.glob`
+  still works for raw, non-content imports.)
 - **The build runs in CI, not on the Worker.** Image optimization and feed data
-  are resolved on the CI runner; the Worker just serves the prerendered output.
-- **`wrangler deploy` is the publish step.** The build artifact in `dist/` is
-  uploaded to Cloudflare.
+  are resolved on the CI runner; the edge just serves the prerendered output.
+- **`wrangler deploy` is the publish step,** driven by
+  [`cloudflare/wrangler-action`](https://github.com/cloudflare/wrangler-action)
+  in CI. The `dist/` artifact is uploaded to Cloudflare.
 
-Key files: `astro.config.mjs`, `wrangler.jsonc`, `package.json` (`build` and
-`deploy` scripts), `.nvmrc` (pins the Node version — see
-[Guardrail: pin the toolchain](#g-toolchain)).
+Key files: `astro.config.mjs`, [`wrangler.jsonc`](./examples/wrangler.jsonc)
+(assets-only example), `src/content.config.ts`, `package.json` (`build`/`deploy`
+scripts), `.nvmrc` (pins Node — see [Guardrail: pin the toolchain](#g-toolchain)).
+
+> **Astro 7 note:** v7 defaults to a Rust compiler and Rust Markdown pipeline —
+> fast, but new. Since output is static, that churn runs on CI, never on the live
+> edge. If a build ever regresses, opt back into the JS Markdown pipeline via
+> `@astrojs/markdown-remark`; and keep agent-authored markup well-formed — v7 no
+> longer auto-corrects malformed HTML, which is a *feature* for catching bad output.
 
 ---
 
 ## Component 2 — Content as data
 
-All editorial content is JSON under `src/data/`, with a matching TypeScript module
-that is the **single source of truth for the schema** and the render helpers.
+All editorial content is JSON under `src/data/`. Two modules own the contract:
+[`src/content.config.ts`](./src/content.config.ts) holds the **Zod schema** for
+each content type (the build-time gate), and [`src/lib/content.ts`](./src/lib/content.ts)
+holds the **render/sanitize helpers**. Pages import from these — never re-implement.
 
-| Data | Written by | Schema / helpers | Rendered by |
-|------|-----------|------------------|-------------|
-| `src/data/reading.json` | deterministic feed refresh | (inline) | `src/pages/reading.astro` |
-| `src/data/brief/<date>.json` | AI agent (daily) | `src/lib/brief.ts` | `src/pages/brief/[date].astro`, `latest.txt.ts` |
-| `src/data/digest/<week>.json` | AI agent (weekly) | `src/lib/digest.ts` | `src/pages/digest/[week].astro` |
+| Data | Written by | Schema | Rendered by |
+|------|-----------|--------|-------------|
+| `src/data/reading.json` | deterministic feed refresh | `content.config.ts` (or inline) | `src/pages/reading.astro` |
+| `src/data/brief/<date>.json` | AI agent (daily) | `content.config.ts` → `brief` | `src/pages/brief/[date].astro`, `latest.txt.ts` |
+| `src/data/digest/<week>.json` | AI agent (weekly) | `content.config.ts` → `digest` | `src/pages/digest/[week].astro` |
 | `src/data/brief-sources.json` | human (curated) | — | consumed by the agent playbook |
+
+> The blueprint ships `src/lib/content.ts` and a reference `src/content.config.ts`.
+> The `src/pages/*` above are ones **you create** when you scaffold the generator
+> (see the [Claude Code guides](./docs)).
 
 Two conventions make this pleasant to work with:
 
 - **One file per unit of content** (`brief/2026-06-30.json`), so concurrent
   writers rarely touch the same file and diffs stay legible.
-- **The `lib/*.ts` module owns the types and the formatting/validation helpers**
-  (date formatting, URL sanitizing, grouping). Pages never re-implement these, so
-  agent-written data and hand-written data render through the same safe path.
+- **Schema and helpers each live in one module.** `content.config.ts` validates
+  shape at build time; `content.ts` owns date formatting and URL sanitizing.
+  Agent-written and hand-written data render through the same safe, validated path.
 
 ---
 
@@ -171,10 +190,16 @@ like any other code.
 
 - **Workflow:** `.github/workflows/deploy.yml` — triggers on `push` to `main`
   (and `workflow_dispatch`). Steps: checkout → set up Node from `.nvmrc` →
-  `npm ci` → `npm run build` → `npx wrangler deploy`.
-- **One secret:** `CLOUDFLARE_API_TOKEN` (repo secret) with Workers edit rights.
+  `npm ci` → `npm run build` → deploy via `cloudflare/wrangler-action`.
+- **Two secrets:** `CLOUDFLARE_API_TOKEN` (scoped to "Edit Cloudflare Workers")
+  and `CLOUDFLARE_ACCOUNT_ID` — wrangler needs the account id explicitly when the
+  token can reach more than one account. (wrangler doesn't support OIDC yet, so a
+  scoped API token is the right call, not keyless auth.)
 - **Concurrency group** so two deploys never race; the newest commit wins without
   cancelling an in-flight upload.
+- **SHA-pinned actions.** Every `uses:` is pinned to a commit SHA, not a tag —
+  tags are mutable and have been hijacked (CVE-2025-30066);
+  [`examples/dependabot.yml`](./examples/dependabot.yml) keeps the pins fresh.
 
 Because every writer pushes to `main`, and every push to `main` deploys, the
 site converges to "whatever is on `main`" automatically.
@@ -230,7 +255,10 @@ Pick one deliberately; don't assume "push triggers deploy" holds for bot commits
 reads it). This bit us: a dependency upgrade (Vite/Astro) began requiring a newer
 Node API (`node:module.registerHooks`, Node ≥ 22.15) while `.nvmrc` still pinned
 an older Node. Builds passed locally (newer Node) and failed in CI (older Node).
-Keep the pin current and treat "CI Node" and "my Node" as the same thing.
+Keep the pin current and treat "CI Node" and "my Node" as the same thing. Pin to
+an **Active LTS** line (Node 24 as of mid-2026; 22 dropped to Maintenance in late
+2025) and set `engines.node` to match — a `devEngines.runtime` block makes a
+too-old Node fail fast at `npm install` rather than deep in a 3 a.m. build.
 
 ### Cap every job's runtime (cost control)
 
@@ -268,14 +296,21 @@ Agent- (and feed-) authored content is untrusted input to your renderer. The
 `lib/*.ts` helpers enforce this centrally:
 
 - `safeUrl()` accepts only `http(s)` URLs and rejects `javascript:`, `data:`,
-  relative, or malformed ones — so unattended content can't inject a script URL
-  into an `href`.
+  relative, malformed, or credential-bearing ones — `https://paypal.com@evil.example`
+  parses as `https:` but navigates to `evil.example`, a phishing shape — so
+  unattended content can't inject a script URL or a spoofed host into an `href`.
 - `escapeXml()` for anything rendered into the RSS/feed endpoints.
 - Grouping/validation helpers put unexpected values into an "other" bucket rather
   than dropping them, so totals always reconcile and nothing vanishes silently.
 
 Render agent output through the same validated path as everything else. Never
 `set:html` raw model output.
+
+**Add a Content-Security-Policy as the backstop.** Sanitizing is the first line;
+CSP is the second. Ship a CSP that forbids inline script — via Astro's built-in
+`security.csp` config or a Cloudflare `_headers` file — so that *even if* a
+sanitizer is ever bypassed, an injected `<script>` in unattended content can't
+execute. Belt and suspenders, on the same untrusted-input thesis.
 
 ### Give the agent a hard content contract: never fabricate, never repeat
 
@@ -292,13 +327,16 @@ generation trustworthy:
 These belong in the playbook because they are the difference between "an agent
 that writes a real briefing" and "an agent that hallucinates plausibly."
 
-### Keep dependencies current and boring
+### Keep dependencies current and boring — and pin what you can't
 
-Automated dependency updates (Dependabot) plus `npm audit` keep the supply chain
-patched. Because the deploy is fully automated, a broken dependency surfaces as a
-red deploy immediately — so it's worth validating dependency bumps (`npm ci &&
-npm run build`) before merging, especially given the toolchain-pinning lesson
-above.
+Ship [`examples/dependabot.yml`](./examples/dependabot.yml) (copy to
+`.github/dependabot.yml`): it keeps the npm dependency and the SHA-pinned Actions
+current. Pin every GitHub Action to a **commit SHA**, not a tag — tags are mutable
+and have been hijacked to run attacker code in thousands of repos (CVE-2025-30066);
+only SHA-pinned consumers were safe. Dependabot bumps the SHA and its `# vX.Y.Z`
+comment together, so pinning doesn't rot. Because the deploy is fully automated, a
+broken bump surfaces as a red deploy immediately — validate bumps (`npm ci &&
+npm run build`) before merging, especially given the toolchain-pinning lesson above.
 
 ---
 
@@ -349,13 +387,40 @@ edit locally → npm run dev → commit → push → predeploy freshness check �
 
 ---
 
+## Optional: modern niceties for a fork
+
+Deliberately **kept out of the boring core** — add any that fit, none required.
+Each reuses pieces you already have and degrades gracefully.
+
+- **Content-Security-Policy** — already promoted to a recommended guardrail above;
+  the cheapest defense-in-depth win.
+- **Podcast / RSS feed** — the brief already writes a `spokenScript`; expose an
+  `@astrojs/rss` endpoint and run every field through `escapeXml()`.
+- **Edge caching headers** — `Cache-Control: public, max-age=31536000, immutable`
+  on hashed assets; a short `s-maxage` on HTML. Static + edge makes this nearly free.
+- **Core Web Vitals budget** — target LCP ≤ 2.5s, INP ≤ 200ms, CLS ≤ 0.1. A
+  prerendered Astro site starts here by default; guard it so a fork doesn't regress.
+- **Accessibility** — WCAG AA basics (contrast, landmarks, alt text) in the
+  hand-written templates.
+- **Structured data (JSON-LD)** — mirror only what's visibly on the page, under
+  the same never-fabricate discipline as the content itself.
+- **Runner hardening** — `step-security/harden-runner` (start in `audit` mode so
+  it can never fail a 3 a.m. deploy), especially justified by the untrusted-feed
+  fetch job.
+
+---
+
 ## Reference file map
 
 ```
 .
-├── .github/workflows/
-│   ├── deploy.yml                    # push to main → build → wrangler deploy (timeout-capped)
-│   └── daily-reading-refresh.yml     # cron → refresh feeds → commit (timeout-capped)
+├── .github/
+│   ├── workflows/
+│   │   ├── deploy.yml                # push to main → build → wrangler-action deploy
+│   │   └── daily-reading-refresh.yml # cron → refresh feeds → commit (timeout-capped)
+│   └── dependabot.yml                # keep npm + SHA-pinned actions current
+├── CLAUDE.md                         # project memory for Claude Code
+├── docs/                             # how to build this with Claude Code (two guides)
 ├── .claude/commands/                 # the agent playbooks (the "programs")
 │   ├── daily-update.md               #   entry point (brief daily; digest on a chosen day)
 │   ├── generate-brief.md             #   daily brief: verify-or-omit, never repeat
@@ -369,13 +434,13 @@ edit locally → npm run dev → commit → push → predeploy freshness check �
 │   │   ├── brief/<date>.json         #   one file per daily brief
 │   │   ├── digest/<week>.json        #   one file per weekly digest
 │   │   └── brief-sources.json        #   curated sources the agent must verify
+│   ├── content.config.ts             # Zod schema per content type (build-time gate)
 │   ├── lib/
-│   │   ├── brief.ts                  # brief schema + safe render helpers
-│   │   └── digest.ts                 # digest schema + safeUrl/escapeXml/grouping
-│   └── pages/                        # render JSON → HTML at build time
-├── astro.config.mjs                  # site + Cloudflare adapter
-├── wrangler.jsonc                    # Workers config
-└── .nvmrc                            # toolchain pin (keep ahead of deps)
+│   │   └── content.ts                # safeUrl / escapeXml / UTC date helpers
+│   └── pages/                        # render JSON → HTML at build time (you add)
+├── astro.config.mjs                  # Astro 7 static config (you add)
+├── wrangler.jsonc                    # Workers Static Assets config (assets-only)
+└── .nvmrc                            # toolchain pin — Node 24 LTS (keep ahead of deps)
 ```
 
 ---

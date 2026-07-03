@@ -1,0 +1,19 @@
+// Cloudflare Workers Static Assets config for a fully static (prerendered) site.
+// Copy to your project root as `wrangler.jsonc`.
+//
+// There is no `main` field on purpose: this is an *assets-only* deploy —
+// Cloudflare serves the built dist/ directory directly, with no Worker script
+// and no @astrojs/cloudflare adapter. For a 100%-prerendered site (what this
+// blueprint produces) that's the leanest, most battle-tested path. Add a `main`
+// entry and the adapter only if you later introduce on-demand (server-rendered)
+// routes. See ARCHITECTURE.md, Component 1.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "my-agent-maintained-site",
+  "compatibility_date": "2026-07-01",
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+}

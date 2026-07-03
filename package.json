@@ -5,9 +5,12 @@
   "description": "Blueprint + hardened building blocks for a self-updating, agent-maintained content site.",
   "license": "MIT",
   "engines": {
-    "node": ">=22.15"
+    "node": ">=24"
   },
-  "comment": "This is a blueprint, not a turnkey app. Add your own static-site generator (Astro/Eleventy/etc.) and its build/deploy scripts. The scripts below are the reusable, hardened pieces; see ARCHITECTURE.md.",
+  "devEngines": {
+    "runtime": { "name": "node", "version": ">=24", "onFail": "error" }
+  },
+  "comment": "This is a blueprint, not a turnkey app. Add your own static-site generator (Astro/Eleventy/etc.) and its build/deploy scripts. The scripts below are the reusable, hardened pieces; see ARCHITECTURE.md. Keep .nvmrc's exact pin at or above the engines floor.",
   "scripts": {
     "refresh": "node scripts/refresh-feeds.mjs",
     "predeploy": "node scripts/predeploy-check.mjs"

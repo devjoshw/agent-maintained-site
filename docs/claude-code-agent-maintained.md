@@ -30,14 +30,14 @@ two distinct roles, and this guide covers both:
 
 - **Claude Code** installed:
   ```bash
-  npm install -g @anthropic-ai/claude-code    # needs Node 22+
+  npm install -g @anthropic-ai/claude-code    # CLI needs Node 22+ (this repo pins 24)
   # or the native installer:
   curl -fsSL https://claude.ai/install.sh | bash
   ```
 - **An Anthropic API key** for the unattended runs (interactive runs can use your
   normal Claude login). Get one at [console.anthropic.com](https://console.anthropic.com);
   you'll store it as the `ANTHROPIC_API_KEY` GitHub Actions secret in Part 3.
-- **Node** matching [`.nvmrc`](../.nvmrc) (currently `22.22.2`): `nvm use`.
+- **Node** matching [`.nvmrc`](../.nvmrc) (Node 24 LTS): `nvm use`.
 - **A host that deploys from a build artifact.** The examples target Cloudflare
   Workers via `wrangler`; Netlify, Pages, etc. work the same way.
 
@@ -56,21 +56,14 @@ The blueprint has no static-site generator yet. This is the best possible first
 job for Claude Code, because the surrounding contract is already written down
 (`ARCHITECTURE.md`, `src/lib/content.ts`, the data shapes).
 
-**1. Orient the agent.** In your session:
+**1. Orient the agent.** A starter [`CLAUDE.md`](../CLAUDE.md) already ships — it
+encodes the blueprint's conventions (content-as-data, the `content.ts` sanitize
+rule, the two build paths) and loads into every session. Skim it and tailor it to
+your build. If you want a fresh codebase pass, `/init` *updates* it without
+overwriting your notes:
 
 ```
 /init
-```
-
-`/init` reads the repo and writes a starter `CLAUDE.md` (project memory loaded
-every session). Then tell it to read the design docs so its `CLAUDE.md` reflects
-them:
-
-```
-Read ARCHITECTURE.md and src/lib/content.ts, then update CLAUDE.md with: the
-content-as-data model, the one-file-per-unit convention, and the rule that all
-agent/feed output must render through the src/lib/content.ts helpers (safeUrl,
-escapeXml, the UTC date formatters) — never set:html on raw model output.
 ```
 
 **2. Plan before building.** Enter **plan mode** — press `Shift+Tab` to cycle the
@@ -78,28 +71,32 @@ permission mode until it reads *plan* — so the agent proposes an approach with
 editing yet:
 
 ```
-Plan an Astro static site (TypeScript strict, @astrojs/cloudflare adapter) that:
-- loads src/data/**/*.json at build time with import.meta.glob
-- renders reading.json, brief/<date>.json, and digest/<week>.json to pages
+Plan an Astro 7 static site (TypeScript strict) that:
+- defines brief/digest/reading collections in src/content.config.ts with the
+  Content Layer glob() loader + Zod schemas (a reference file already ships)
+- renders each collection to pages via getCollection()
 - imports formatDate/safeUrl/etc. from src/lib/content.ts for all rendering
+- deploys assets-only to Cloudflare Workers Static Assets (no @astrojs/cloudflare
+  adapter — the site is fully static; use examples/wrangler.jsonc)
 - adds npm scripts: dev, build, deploy, and keeps the existing refresh/predeploy
 Show me the file list and the package.json changes first.
 ```
 
-Review the plan, then approve to let it scaffold. Astro is what the reference
-site uses, but Eleventy, Hugo, or a Next static export all satisfy the one
+Review the plan, then approve to let it scaffold. Astro 7 is what the reference
+site targets, but Eleventy, Hugo, or a Next static export all satisfy the one
 requirement: **pages can read local JSON at build time.**
 
-**3. Wire the schema modules.** `ARCHITECTURE.md` refers to `src/lib/brief.ts` and
-`src/lib/digest.ts` (the typed schema + render helpers for each content type).
-They aren't shipped — have Claude Code create them alongside the existing
-`content.ts`, importing its helpers:
+**3. Confirm the schema gate.** The blueprint ships a reference
+[`src/content.config.ts`](../src/content.config.ts) with a Zod schema per content
+type — that's your build-time gate: malformed agent JSON fails `npm run build`
+instead of shipping. It activates automatically once Astro is installed. Have
+Claude Code wire the pages to it:
 
 ```
-Create src/lib/brief.ts and src/lib/digest.ts. Each defines the TypeScript type
-for one content unit (see the JSON shapes in .claude/commands/generate-brief.md
-and generate-digest.md) and re-exports the render helpers from content.ts. Pages
-must import types + helpers only from these modules.
+Wire the pages to query the src/content.config.ts collections with getCollection(),
+and render every field through the src/lib/content.ts helpers. If the brief/digest
+JSON shapes evolve, update the Zod schemas in content.config.ts to match — the
+types flow from there.
 ```
 
 **4. Verify the build closes the loop.** Seed one data file and build:
@@ -185,7 +182,7 @@ commits to `main` → deploy workflow rebuilds → live.**
 
 Add your API key as a repo secret: **Settings → Secrets and variables → Actions →
 New repository secret**, name `ANTHROPIC_API_KEY`. (You already added
-`CLOUDFLARE_API_TOKEN` for the deploy workflow.)
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` for the deploy workflow.)
 
 ### Option A (recommended) — the official Claude Code GitHub Action
 
@@ -217,11 +214,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20     # hard cost ceiling — an agent run can be slow; cap it
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0    # the playbooks read recent briefs + rebase before push
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
@@ -321,10 +318,13 @@ checklist to keep true.
 - **Rebase before push.** Multiple writers push to `main`; the playbooks
   `git pull --rebase origin main && git push`, retrying a few times. One file per
   content unit keeps those rebases conflict-free.
-- **Mind cost.** A daily agent run is a recurring API charge. `claude-sonnet-5` is
-  a good default; use `claude-opus-4-8` only if quality demands it, or
-  `claude-haiku-4-5` to trim further. Cap `timeout-minutes` and scope
-  `--allowedTools` tightly.
+- **Mind cost.** A daily agent run is a recurring API charge. Rough per-MTok rates
+  (input/output, mid-2026): `claude-haiku-4-5` ~$1/$5, `claude-sonnet-5` ~$2/$10
+  (introductory through **2026-08-31**, then ~$3/$15), `claude-opus-4-8` ~$5/$25.
+  `claude-sonnet-5` is a good default; use `claude-opus-4-8` only if quality
+  demands it, `claude-haiku-4-5` to trim. Prompt caching (cache reads ~0.1× input)
+  pays off here because the playbook + system prompt repeat every run. Cap
+  `timeout-minutes` and scope `--allowedTools` tightly.
 - **Keep the toolchain pin ahead of your deps.** `actions/setup-node` reads
   `.nvmrc`; a dep that needs newer Node than the pin passes locally and fails in
   CI.
