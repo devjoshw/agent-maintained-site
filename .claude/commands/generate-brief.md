@@ -45,8 +45,9 @@ verified this run, write a one-line brief saying so and stop — do not invent.
 4. **Pick the most important new items** for this reader (usually 3–5, fewer on a
    quiet day). Merge duplicates, drop noise.
 
-5. **Write the episode** as `src/data/brief/<date>.json` (keep the schema in a
-   `src/lib/*.ts` module as the source of truth). A workable shape:
+5. **Write the episode** as `src/data/brief/<date>.json`. Its shape must satisfy
+   the `brief` collection's Zod schema in `src/content.config.ts` (the build-time
+   gate — malformed JSON fails `npm run build`). A workable shape:
 
    ```json
    {

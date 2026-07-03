@@ -412,6 +412,12 @@ Each reuses pieces you already have and degrades gracefully.
 
 ## Reference file map
 
+This is the **target layout** once you've scaffolded the generator and copied the
+`examples/` staging files into place (`examples/wrangler.jsonc` → `./wrangler.jsonc`,
+`examples/dependabot.yml` → `.github/dependabot.yml`, `examples/github-workflows/*.yml`
+→ `.github/workflows/`). The README "What's in here" tree shows the as-shipped
+blueprint; entries you create are marked *(you add)*.
+
 ```
 .
 ├── .github/
@@ -419,6 +425,7 @@ Each reuses pieces you already have and degrades gracefully.
 │   │   ├── deploy.yml                # push to main → build → wrangler-action deploy
 │   │   └── daily-reading-refresh.yml # cron → refresh feeds → commit (timeout-capped)
 │   └── dependabot.yml                # keep npm + SHA-pinned actions current
+├── START_HERE.md                     # one-file entry point (read this, do everything)
 ├── CLAUDE.md                         # project memory for Claude Code
 ├── docs/                             # how to build this with Claude Code (two guides)
 ├── .claude/
@@ -433,10 +440,10 @@ Each reuses pieces you already have and degrades gracefully.
 │   └── predeploy-check.mjs           # blocks deploying stale local state over bot commits
 ├── src/
 │   ├── data/                         # content as data (git is the CMS)
-│   │   ├── reading.json              #   feed sources + cached latest items
-│   │   ├── brief/<date>.json         #   one file per daily brief
-│   │   ├── digest/<week>.json        #   one file per weekly digest
-│   │   └── brief-sources.json        #   curated sources the agent must verify
+│   │   ├── reading.example.json      #   seed shape (ships) — copy to reading.json
+│   │   ├── brief/<date>.json         #   one file per daily brief (you add)
+│   │   ├── digest/<week>.json        #   one file per weekly digest (you add)
+│   │   └── brief-sources.json        #   curated sources the agent verifies (you add)
 │   ├── content.config.ts             # Zod schema per content type (build-time gate)
 │   ├── lib/
 │   │   └── content.ts                # safeUrl / escapeXml / UTC date helpers

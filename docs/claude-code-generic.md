@@ -14,9 +14,10 @@ yourself, with Claude Code helping.
 > schedule? Read [`claude-code-agent-maintained.md`](./claude-code-agent-maintained.md)
 > instead.
 
-> **Not sure which path fits?** Run `/onboard` in Claude Code for a guided
-> interview that recommends generic vs agent-maintained and estimates the effort +
-> cost before you commit.
+> **New here?** Open the repo in Claude Code and send _"Read START_HERE.md and
+> follow it"_ — it sets up a safe workspace and runs the `/onboard` interview,
+> which recommends generic vs agent-maintained and estimates effort + cost before
+> you commit.
 
 > **This repo is a blueprint, not a runnable app.** It ships the reusable pieces
 > (`scripts/`, `src/lib/content.ts`, example workflows) but **not** a static-site
@@ -106,8 +107,9 @@ List the files you'll add and the package.json changes before writing anything.
 ```
 
 The blueprint has exactly one hard requirement for the generator you pick: **its
-pages must be able to read local JSON at build time** (Astro's
-`import.meta.glob`, Eleventy global data, Hugo data files, etc.). Everything else
+pages must be able to read local JSON at build time** (Astro's Content Layer
+`glob()` loader reading `src/content.config.ts`, Eleventy global data, Hugo data
+files, etc.). Everything else
 is your taste.
 
 Review the plan, approve it, and let Claude Code scaffold. Then verify the loop

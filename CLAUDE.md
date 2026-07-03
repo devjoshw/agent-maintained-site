@@ -12,10 +12,10 @@ build paths are documented in [`docs/`](./docs) — pick one:
 > Delete the path you're not using from this list so future sessions don't
 > reach for the wrong one.
 
-**New to this repo? Run `/onboard`** — it sets up a safe workspace, interviews you
-about the site you want, and plans it on top of this architecture (with effort +
-Claude Code cost estimates) before building. A least-privilege
-[`.claude/settings.json`](./.claude/settings.json) ships alongside it.
+**New to this repo?** The user can just say _"Read START_HERE.md and follow it"_ —
+that makes the workspace safe and runs the `/onboard` interview (site type →
+architecture-extension plan → effort + Claude Code cost estimate) before building.
+A least-privilege [`.claude/settings.json`](./.claude/settings.json) ships alongside.
 
 ## Read first
 

@@ -6,9 +6,10 @@ others are written by an autonomous AI agent on a schedule. Everything is
 committed to git, and a push to `main` rebuilds and redeploys the site.
 
 > **New here? Open this repo in [Claude Code](https://claude.com/claude-code) and
-> run `/onboard`.** It sets up a safe workspace, interviews you about the site you
-> want, and plans it on top of this architecture — with effort and Claude Code
-> cost estimates — before writing any code.
+> say: _"Read START_HERE.md and follow it."_** Claude sets up a safe workspace,
+> interviews you about the site you want, and plans it on top of this architecture
+> — with effort and Claude Code cost estimates — before writing any code. (Prefer a
+> slash command? `/onboard` does the same thing.)
 
 **Read [`ARCHITECTURE.md`](./ARCHITECTURE.md) first** — it explains the whole
 pattern, the content loops, and (most usefully) the guardrails that make
@@ -21,8 +22,9 @@ unattended automation safe and cheap.
 ## What's in here
 
 ```
-ARCHITECTURE.md                       # the pattern, the loops, the guardrails — start here
-README.md
+START_HERE.md                         # one-file entry point — "Read START_HERE.md and follow it"
+ARCHITECTURE.md                       # the pattern, the loops, the guardrails
+README.md                             # what this is + quick start (this file)
 CLAUDE.md                             # project memory for Claude Code
 LICENSE                               # MIT
 docs/

@@ -35,8 +35,9 @@ long, thin one).
 
    Describe your reader's interests here so the rating reflects them.
 
-4. **Write** `src/data/digest/<weekOf>.json` (schema lives in a `src/lib/*.ts`
-   module). A workable shape:
+4. **Write** `src/data/digest/<weekOf>.json` — its shape must satisfy the `digest`
+   collection's Zod schema in `src/content.config.ts` (the build-time gate). A
+   workable shape:
 
    ```json
    {
