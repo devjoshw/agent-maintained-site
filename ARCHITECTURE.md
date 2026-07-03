@@ -147,8 +147,9 @@ The editorial content is produced by an **LLM agent running a written playbook o
 a schedule** — here, [Claude Code](https://claude.com/claude-code) sessions
 triggered on a cron. The playbooks are plain Markdown in `.claude/commands/`:
 
-- `daily-update.md` — the entry point. "Always write today's brief; on Sundays
-  also write the weekly digest." It just delegates to the two below.
+- `daily-update.md` — the entry point. "Always write today's brief; on a chosen
+  day (Sunday in the reference implementation) also write the weekly digest." It
+  just delegates to the two below.
 - `generate-brief.md` — produce `src/data/brief/<date>.json`: fetch and **verify**
   items from curated sources, de-duplicate against recent briefs, write a spoken
   script for text-to-speech, validate the build, commit, push.
@@ -316,7 +317,7 @@ cron → refresh-feeds.mjs → fetch feeds (fail-soft) → write reading.json
 cron → agent session runs daily-update.md
      → generate-brief.md: fetch+verify sources, de-dupe, write brief/<date>.json
         → npm run build (must pass) → commit + push (user token) → deploy → live
-     → (Sundays) generate-digest.md: rate week's articles, write digest/<week>.json
+     → (chosen day) generate-digest.md: rate week's articles, write digest/<week>.json
         → build → commit + push → deploy → live
 ```
 
@@ -356,7 +357,7 @@ edit locally → npm run dev → commit → push → predeploy freshness check �
 │   ├── deploy.yml                    # push to main → build → wrangler deploy (timeout-capped)
 │   └── daily-reading-refresh.yml     # cron → refresh feeds → commit (timeout-capped)
 ├── .claude/commands/                 # the agent playbooks (the "programs")
-│   ├── daily-update.md               #   entry point (brief daily; digest Sundays)
+│   ├── daily-update.md               #   entry point (brief daily; digest on a chosen day)
 │   ├── generate-brief.md             #   daily brief: verify-or-omit, never repeat
 │   └── generate-digest.md            #   weekly digest: rate + summarize
 ├── scripts/

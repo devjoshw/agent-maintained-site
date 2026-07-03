@@ -19,6 +19,9 @@ unattended automation safe and cheap.
 ARCHITECTURE.md                       # the pattern, the loops, the guardrails — start here
 README.md
 LICENSE                               # MIT
+docs/
+  claude-code-agent-maintained.md     # build the self-updating site with Claude Code as the scheduled writer
+  claude-code-generic.md              # build a plain static site with Claude Code as an interactive helper
 .nvmrc                                # toolchain pin (keep it AHEAD of your deps)
 package.json                          # the reusable scripts + rss-parser
 scripts/
@@ -76,6 +79,21 @@ See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the details and the specific
 failure each guardrail prevents (job timeouts, abort-on-timeout fetching, the
 `GITHUB_TOKEN`-doesn't-trigger-deploys caveat, toolchain pinning, URL
 sanitizing, the never-fabricate/never-repeat agent contract).
+
+## Developing with Claude Code
+
+This blueprint is meant to be built with [Claude Code](https://claude.com/claude-code).
+Two guides, depending on how much automation you want:
+
+- **[Agent-maintained](./docs/claude-code-agent-maintained.md)** — the full
+  pattern: Claude Code as the **autonomous scheduled writer**, running the
+  `.claude/commands/` playbooks on a cron to generate content, commit to `main`,
+  and redeploy — unattended.
+- **[Generic / non-agent](./docs/claude-code-generic.md)** — Claude Code as an
+  **interactive pair-programmer** to build a plain static site from these building
+  blocks. No cron, no unattended LLM, no API key in CI.
+
+Both start from the same blueprint; the agent-maintained guide is the superset.
 
 ## License
 
