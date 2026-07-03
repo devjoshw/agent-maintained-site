@@ -421,10 +421,13 @@ Each reuses pieces you already have and degrades gracefully.
 │   └── dependabot.yml                # keep npm + SHA-pinned actions current
 ├── CLAUDE.md                         # project memory for Claude Code
 ├── docs/                             # how to build this with Claude Code (two guides)
-├── .claude/commands/                 # the agent playbooks (the "programs")
-│   ├── daily-update.md               #   entry point (brief daily; digest on a chosen day)
-│   ├── generate-brief.md             #   daily brief: verify-or-omit, never repeat
-│   └── generate-digest.md            #   weekly digest: rate + summarize
+├── .claude/
+│   ├── settings.json                 # safe default permissions (least-privilege)
+│   └── commands/                     # the agent playbooks (the "programs")
+│       ├── onboard.md                #   guided onboarding interview — run this first
+│       ├── daily-update.md           #   entry point (brief daily; digest on a chosen day)
+│       ├── generate-brief.md         #   daily brief: verify-or-omit, never repeat
+│       └── generate-digest.md        #   weekly digest: rate + summarize
 ├── scripts/
 │   ├── refresh-feeds.mjs             # deterministic writer: abort-on-timeout, fail-soft
 │   └── predeploy-check.mjs           # blocks deploying stale local state over bot commits

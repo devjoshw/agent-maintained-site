@@ -5,6 +5,11 @@ itself up to date. Some pages are refreshed by a deterministic scheduled job;
 others are written by an autonomous AI agent on a schedule. Everything is
 committed to git, and a push to `main` rebuilds and redeploys the site.
 
+> **New here? Open this repo in [Claude Code](https://claude.com/claude-code) and
+> run `/onboard`.** It sets up a safe workspace, interviews you about the site you
+> want, and plans it on top of this architecture — with effort and Claude Code
+> cost estimates — before writing any code.
+
 **Read [`ARCHITECTURE.md`](./ARCHITECTURE.md) first** — it explains the whole
 pattern, the content loops, and (most usefully) the guardrails that make
 unattended automation safe and cheap.
@@ -28,10 +33,13 @@ package.json                          # the reusable scripts + rss-parser (Node 
 scripts/
   refresh-feeds.mjs                   # deterministic writer: abort-on-timeout, bounded concurrency, fail-soft
   predeploy-check.mjs                 # blocks a manual deploy from shipping stale state over bot commits
-.claude/commands/                     # the agent playbooks (the "programs")
-  daily-update.md                     #   entry point
-  generate-brief.md                   #   daily brief: never-fabricate / never-repeat contract
-  generate-digest.md                  #   weekly digest
+.claude/
+  settings.json                       # safe default permissions (least-privilege)
+  commands/                           # the agent playbooks (the "programs")
+    onboard.md                        #   guided onboarding interview — run this first
+    daily-update.md                   #   entry point
+    generate-brief.md                 #   daily brief: never-fabricate / never-repeat contract
+    generate-digest.md                #   weekly digest
 src/lib/content.ts                    # safe render helpers: safeUrl, escapeXml, UTC date formatting
 src/content.config.ts                 # Zod schemas that gate agent JSON at build time
 src/data/reading.example.json         # the shape the refresh job reads/writes

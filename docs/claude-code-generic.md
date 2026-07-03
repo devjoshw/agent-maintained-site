@@ -14,6 +14,10 @@ yourself, with Claude Code helping.
 > schedule? Read [`claude-code-agent-maintained.md`](./claude-code-agent-maintained.md)
 > instead.
 
+> **Not sure which path fits?** Run `/onboard` in Claude Code for a guided
+> interview that recommends generic vs agent-maintained and estimates the effort +
+> cost before you commit.
+
 > **This repo is a blueprint, not a runnable app.** It ships the reusable pieces
 > (`scripts/`, `src/lib/content.ts`, example workflows) but **not** a static-site
 > generator, `src/pages/`, or a build. Steps 2–3 are where you add those with

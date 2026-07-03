@@ -18,6 +18,10 @@ two distinct roles, and this guide covers both:
 > [`claude-code-generic.md`](./claude-code-generic.md) instead. This guide is the
 > superset; it assumes you want the scheduled agent.
 
+> **Not sure which path fits?** Run `/onboard` in Claude Code for a guided
+> interview that recommends agent-maintained vs generic and estimates the effort +
+> cost before you commit.
+
 > **This repo is a blueprint, not a runnable app.** It ships the reusable, subtle
 > pieces (`scripts/`, `src/lib/content.ts`, the playbooks, example workflows) but
 > **not** a static-site generator, `src/pages/`, or a build. Part 1 below is where
