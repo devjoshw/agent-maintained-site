@@ -1,0 +1,71 @@
+name: Daily reading refresh
+
+# Runs daily, fetches the latest item from each feed in src/data/reading.json,
+# and commits the updated JSON.
+#
+# IMPORTANT (see ARCHITECTURE.md): a commit made with the default GITHUB_TOKEN
+# does NOT trigger other workflows, so this commit will NOT auto-trigger the
+# deploy workflow. This file handles that explicitly: after a change is
+# committed, it dispatches the deploy workflow via the API (which is not subject
+# to the suppression rule). That needs `actions: write`.
+
+on:
+  schedule:
+    # Daily at 11:00 UTC. Adjust to your audience's morning.
+    - cron: '0 11 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write # commit & push the refreshed JSON
+  actions: write  # dispatch the deploy workflow after a change
+
+concurrency:
+  group: reading-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    # Hard cap so a slow/hung feed fetch can never burn the 6-hour default of
+    # Actions minutes. The script also enforces its own per-feed and overall
+    # deadlines.
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Refresh feeds
+        run: node scripts/refresh-feeds.mjs
+
+      - name: Commit refreshed JSON (if changed)
+        id: commit
+        run: |
+          if [[ -z "$(git status --porcelain src/data/reading.json)" ]]; then
+            echo "No changes to commit — feeds returned identical data."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/data/reading.json
+          git commit -m "Refresh reading feeds (automated)"
+          git push origin HEAD:main
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy the refreshed feeds
+        # Only when feeds actually changed — no wasted builds on quiet days.
+        # `gh workflow run` via the API is NOT subject to the GITHUB_TOKEN
+        # push-suppression rule, so this reliably triggers the deploy.
+        if: steps.commit.outputs.changed == 'true'
+        run: gh workflow run deploy.yml --ref main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

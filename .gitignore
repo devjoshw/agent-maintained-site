@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.claude/settings.local.json
+.astro/
+.wrangler/
+*.log
+.DS_Store
+.dev.vars
+.env

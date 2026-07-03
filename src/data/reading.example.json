@@ -1,0 +1,19 @@
+{
+  "lastRefreshed": null,
+  "categories": [
+    {
+      "name": "Example category",
+      "entries": [
+        {
+          "name": "Example Source",
+          "author": "Author Name",
+          "url": "https://example.com",
+          "feed": "https://example.com/feed.xml",
+          "note": "One line on why this source is worth following. The refresh job fills in `latest` and `recent` from the feed; you only hand-write everything above.",
+          "latest": null,
+          "recent": []
+        }
+      ]
+    }
+  ]
+}

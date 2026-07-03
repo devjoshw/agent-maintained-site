@@ -1,0 +1,51 @@
+name: Deploy to the edge
+
+# Builds the site and deploys it on every push to main (including the automated
+# feed-refresh and agent commits, when those are made with a token that triggers
+# workflows — see ARCHITECTURE.md's GITHUB_TOKEN caveat). origin/main is the
+# single source of truth: whatever is on main is what's live.
+#
+# Requires one repository secret for the Cloudflare example:
+#   CLOUDFLARE_API_TOKEN  (Settings > Secrets and variables > Actions)
+# Swap the deploy step for your host (Netlify, Pages, etc.) as needed.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {} # manual trigger, and used by the refresh workflow
+
+# Never run two deploys at once; queue them so the newest commit wins without
+# cancelling a deploy that is already mid-upload.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Hard cap so a hung step can never burn the 6-hour default of Actions
+    # minutes. A normal build + deploy finishes in ~1-2 minutes.
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
